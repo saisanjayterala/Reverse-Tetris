@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Reverse Tetris - Version 2</title>
+    <title>Reverse Tetris - Version 3</title>
     <style>
         body {
             display: flex;
@@ -15,6 +15,7 @@
             font-family: Arial, sans-serif;
         }
         #game-container {
+            display: flex;
             border: 2px solid #333;
             background-color: #fff;
             padding: 20px;
@@ -34,8 +35,20 @@
             border: 1px solid #999;
             transition: background-color 0.2s;
         }
-        .filled {
-            background-color: #3498db;
+        #side-panel {
+            margin-left: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        #next-shape {
+            width: 120px;
+            height: 120px;
+            display: grid;
+            grid-template-columns: repeat(4, 30px);
+            grid-template-rows: repeat(4, 30px);
+            background-color: #eee;
+            margin-bottom: 20px;
         }
         #controls {
             margin-top: 20px;
@@ -50,16 +63,12 @@
             border: none;
             border-radius: 5px;
             transition: background-color 0.3s;
+            margin: 5px;
         }
         button:hover {
             background-color: #27ae60;
         }
-        #score-container {
-            margin-top: 20px;
-            text-align: center;
-            font-size: 18px;
-        }
-        #level-container {
+        #score-container, #level-container {
             margin-top: 10px;
             text-align: center;
             font-size: 18px;
@@ -69,17 +78,23 @@
 <body>
     <div id="game-container">
         <div id="game-board"></div>
-        <div id="score-container">Score: <span id="score">0</span></div>
-        <div id="level-container">Level: <span id="level">1</span></div>
-        <div id="controls">
-            <button id="start-btn">Start Game</button>
-            <button id="pause-btn">Pause</button>
+        <div id="side-panel">
+            <div id="next-shape"></div>
+            <div id="score-container">Score: <span id="score">0</span></div>
+            <div id="level-container">Level: <span id="level">1</span></div>
+            <div id="controls">
+                <button id="start-btn">Start Game</button>
+                <button id="pause-btn">Pause</button>
+                <button id="rotate-btn">Rotate</button>
+            </div>
         </div>
     </div>
     <script>
         const board = document.getElementById('game-board');
+        const nextShapePreview = document.getElementById('next-shape');
         const startBtn = document.getElementById('start-btn');
         const pauseBtn = document.getElementById('pause-btn');
+        const rotateBtn = document.getElementById('rotate-btn');
         const scoreDisplay = document.getElementById('score');
         const levelDisplay = document.getElementById('level');
         const rows = 20;
@@ -89,6 +104,20 @@
         let score = 0;
         let level = 1;
         let speed = 1000;
+        let currentShape;
+        let nextShape;
+
+        const shapes = [
+            [[1, 1, 1, 1]],
+            [[1, 1], [1, 1]],
+            [[1, 1, 1], [0, 1, 0]],
+            [[1, 1, 1], [1, 0, 0]],
+            [[1, 1, 1], [0, 0, 1]],
+            [[1, 1, 0], [0, 1, 1]],
+            [[0, 1, 1], [1, 1, 0]]
+        ];
+
+        const colors = ['#FF0000', '#00FF00', '#0000FF', '#FFFF00', '#00FFFF', '#FF00FF', '#FFA500'];
 
         function createBoard() {
             board.innerHTML = '';
@@ -99,16 +128,33 @@
             }
         }
 
-        function getRandomInt(max) {
-            return Math.floor(Math.random() * max);
+        function createNextShapePreview() {
+            nextShapePreview.innerHTML = '';
+            for (let i = 0; i < 16; i++) {
+                const cell = document.createElement('div');
+                cell.classList.add('cell');
+                nextShapePreview.appendChild(cell);
+            }
         }
 
-        function addRow() {
-            const newRow = [];
-            for (let i = 0; i < cols; i++) {
-                newRow.push(getRandomInt(2));
+        function getRandomShape() {
+            const randomIndex = Math.floor(Math.random() * shapes.length);
+            return {
+                shape: shapes[randomIndex],
+                color: colors[randomIndex]
+            };
+        }
+
+        function rotateShape(shape) {
+            const rotated = [];
+            for (let i = 0; i < shape[0].length; i++) {
+                const row = [];
+                for (let j = shape.length - 1; j >= 0; j--) {
+                    row.push(shape[j][i]);
+                }
+                rotated.push(row);
             }
-            return newRow;
+            return rotated;
         }
 
         function updateBoard(gameBoard) {
@@ -116,10 +162,37 @@
             for (let i = 0; i < rows; i++) {
                 for (let j = 0; j < cols; j++) {
                     const cellIndex = i * cols + j;
-                    if (gameBoard[i][j] === 1) {
-                        cells[cellIndex].classList.add('filled');
+                    if (gameBoard[i][j]) {
+                        cells[cellIndex].style.backgroundColor = gameBoard[i][j];
                     } else {
-                        cells[cellIndex].classList.remove('filled');
+                        cells[cellIndex].style.backgroundColor = '';
+                    }
+                }
+            }
+        }
+
+        function updateNextShapePreview() {
+            const cells = nextShapePreview.getElementsByClassName('cell');
+            cells.forEach(cell => cell.style.backgroundColor = '');
+            nextShape.shape.forEach((row, i) => {
+                row.forEach((cell, j) => {
+                    if (cell) {
+                        const index = i * 4 + j;
+                        cells[index].style.backgroundColor = nextShape.color;
+                    }
+                });
+            });
+        }
+
+        function addShapeToBoard(gameBoard) {
+            const shapeHeight = currentShape.shape.length;
+            const shapeWidth = currentShape.shape[0].length;
+            const startCol = Math.floor((cols - shapeWidth) / 2);
+
+            for (let i = 0; i < shapeHeight; i++) {
+                for (let j = 0; j < shapeWidth; j++) {
+                    if (currentShape.shape[i][j]) {
+                        gameBoard[i][startCol + j] = currentShape.color;
                     }
                 }
             }
@@ -127,15 +200,15 @@
 
         function shiftBoardUp(gameBoard) {
             gameBoard.pop();
-            gameBoard.unshift(addRow());
+            gameBoard.unshift(Array(cols).fill(0));
         }
 
         function checkForFullRows(gameBoard) {
             let fullRows = 0;
             for (let i = 0; i < rows; i++) {
-                if (gameBoard[i].every(cell => cell === 1)) {
+                if (gameBoard[i].every(cell => cell !== 0)) {
                     gameBoard.splice(i, 1);
-                    gameBoard.push(Array(cols).fill(0));
+                    gameBoard.unshift(Array(cols).fill(0));
                     fullRows++;
                 }
             }
@@ -161,12 +234,17 @@
         function gameLoop(gameBoard) {
             if (!isPaused) {
                 shiftBoardUp(gameBoard);
+                addShapeToBoard(gameBoard);
                 const fullRows = checkForFullRows(gameBoard);
                 updateScore(fullRows);
                 updateLevel();
                 updateBoard(gameBoard);
 
-                if (gameBoard[0].some(cell => cell === 1)) {
+                currentShape = nextShape;
+                nextShape = getRandomShape();
+                updateNextShapePreview();
+
+                if (gameBoard[0].some(cell => cell !== 0)) {
                     clearInterval(gameInterval);
                     alert('Game Over! Your score: ' + score);
                 }
@@ -176,11 +254,16 @@
         function startGame() {
             let gameBoard = Array(rows).fill().map(() => Array(cols).fill(0));
             createBoard();
+            createNextShapePreview();
             score = 0;
             level = 1;
             speed = 1000;
             scoreDisplay.textContent = score;
             levelDisplay.textContent = level;
+
+            currentShape = getRandomShape();
+            nextShape = getRandomShape();
+            updateNextShapePreview();
 
             gameInterval = setInterval(() => gameLoop(gameBoard), speed);
         }
@@ -195,7 +278,15 @@
             pauseBtn.textContent = isPaused ? 'Resume' : 'Pause';
         });
 
+        rotateBtn.addEventListener('click', () => {
+            if (!isPaused && currentShape) {
+                currentShape.shape = rotateShape(currentShape.shape);
+                updateBoard(gameBoard);
+            }
+        });
+
         createBoard();
+        createNextShapePreview();
     </script>
 </body>
 </html>
