@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Reverse Tetris - Version 5</title>
+    <title>Reverse Tetris - Version 6</title>
     <style>
         body {
             display: flex;
@@ -11,30 +11,30 @@
             align-items: center;
             height: 100vh;
             margin: 0;
-            background-color: #2c3e50;
+            background-color: #1a1a2e;
             font-family: 'Arial', sans-serif;
-            color: #ecf0f1;
+            color: #e94560;
         }
         #game-container {
             display: flex;
-            border: 2px solid #34495e;
-            background-color: #34495e;
+            border: 2px solid #0f3460;
+            background-color: #16213e;
             padding: 20px;
             border-radius: 10px;
-            box-shadow: 0 0 20px rgba(0, 0, 0, 0.3);
+            box-shadow: 0 0 20px rgba(233, 69, 96, 0.3);
         }
         #game-board {
             display: grid;
             grid-template-columns: repeat(10, 30px);
             grid-template-rows: repeat(20, 30px);
             gap: 1px;
-            background-color: #2c3e50;
-            border: 2px solid #95a5a6;
+            background-color: #0f3460;
+            border: 2px solid #e94560;
         }
         .cell {
             width: 30px;
             height: 30px;
-            border: 1px solid #34495e;
+            border: 1px solid #16213e;
             transition: background-color 0.2s, transform 0.2s;
         }
         #side-panel {
@@ -49,9 +49,9 @@
             display: grid;
             grid-template-columns: repeat(4, 30px);
             grid-template-rows: repeat(4, 30px);
-            background-color: #34495e;
+            background-color: #0f3460;
             margin-bottom: 20px;
-            border: 2px solid #95a5a6;
+            border: 2px solid #e94560;
         }
         #controls {
             margin-top: 20px;
@@ -61,21 +61,21 @@
             padding: 10px 20px;
             font-size: 16px;
             cursor: pointer;
-            background-color: #2ecc71;
-            color: white;
+            background-color: #e94560;
+            color: #16213e;
             border: none;
             border-radius: 5px;
             transition: background-color 0.3s, transform 0.1s;
             margin: 5px;
         }
         button:hover {
-            background-color: #27ae60;
+            background-color: #ff6b6b;
             transform: scale(1.05);
         }
         button:active {
             transform: scale(0.95);
         }
-        #score-container, #level-container {
+        #score-container, #level-container, #combo-container {
             margin-top: 10px;
             text-align: center;
             font-size: 18px;
@@ -88,8 +88,8 @@
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
-            background-color: rgba(0, 0, 0, 0.8);
-            color: white;
+            background-color: rgba(22, 33, 62, 0.9);
+            color: #e94560;
             padding: 20px;
             border-radius: 10px;
             text-align: center;
@@ -103,6 +103,30 @@
             50% { transform: scale(1.2); }
             100% { transform: scale(1); }
         }
+        #ai-board {
+            display: grid;
+            grid-template-columns: repeat(10, 15px);
+            grid-template-rows: repeat(20, 15px);
+            gap: 1px;
+            background-color: #0f3460;
+            border: 2px solid #e94560;
+            margin-left: 20px;
+        }
+        .ai-cell {
+            width: 15px;
+            height: 15px;
+            border: 1px solid #16213e;
+        }
+        #combo-indicator {
+            position: absolute;
+            font-size: 24px;
+            font-weight: bold;
+            color: #ff6b6b;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.5s, transform 0.5s;
+        }
     </style>
 </head>
 <body>
@@ -115,19 +139,23 @@
             <div id="next-shape"></div>
             <div id="score-container">Score: <span id="score">0</span></div>
             <div id="level-container">Level: <span id="level">1</span></div>
+            <div id="combo-container">Combo: <span id="combo">0</span></div>
             <div id="controls">
                 <button id="start-btn">Start Game</button>
                 <button id="pause-btn">Pause</button>
             </div>
         </div>
+        <div id="ai-board"></div>
     </div>
     <div id="game-over">
         <h2>Game Over</h2>
         <p>Your score: <span id="final-score"></span></p>
         <button id="restart-btn">Play Again</button>
     </div>
+    <div id="combo-indicator"></div>
     <script>
         const board = document.getElementById('game-board');
+        const aiBoard = document.getElementById('ai-board');
         const nextShapePreview = document.getElementById('next-shape');
         const holdShapePreview = document.getElementById('hold-shape');
         const startBtn = document.getElementById('start-btn');
@@ -135,20 +163,25 @@
         const restartBtn = document.getElementById('restart-btn');
         const scoreDisplay = document.getElementById('score');
         const levelDisplay = document.getElementById('level');
+        const comboDisplay = document.getElementById('combo');
         const finalScoreDisplay = document.getElementById('final-score');
         const gameOverScreen = document.getElementById('game-over');
+        const comboIndicator = document.getElementById('combo-indicator');
         const rows = 20;
         const cols = 10;
         let gameInterval;
+        let aiInterval;
         let isPaused = false;
         let score = 0;
         let level = 1;
         let speed = 1000;
+        let combo = 0;
         let currentShape;
         let nextShape;
         let holdShape;
         let canHold = true;
         let gameBoard;
+        let aiGameBoard;
 
         const shapes = [
             [[1, 1, 1, 1]],
@@ -162,19 +195,20 @@
 
         const colors = ['#FF0000', '#00FF00', '#0000FF', '#FFFF00', '#00FFFF', '#FF00FF', '#FFA500'];
 
-        // Sound effects
+        // Sound effects (replace with actual sound file URLs)
         const moveSound = new Audio('https://example.com/move.mp3');
         const rotateSound = new Audio('https://example.com/rotate.mp3');
         const dropSound = new Audio('https://example.com/drop.mp3');
         const clearSound = new Audio('https://example.com/clear.mp3');
         const gameOverSound = new Audio('https://example.com/gameover.mp3');
+        const comboSound = new Audio('https://example.com/combo.mp3');
 
-        function createBoard() {
-            board.innerHTML = '';
+        function createBoard(element, rows, cols, cellClass) {
+            element.innerHTML = '';
             for (let i = 0; i < rows * cols; i++) {
                 const cell = document.createElement('div');
-                cell.classList.add('cell');
-                board.appendChild(cell);
+                cell.classList.add(cellClass);
+                element.appendChild(cell);
             }
         }
 
@@ -207,13 +241,13 @@
             return rotated;
         }
 
-        function updateBoard() {
-            const cells = board.getElementsByClassName('cell');
+        function updateBoard(board, element, cellClass) {
+            const cells = element.getElementsByClassName(cellClass);
             for (let i = 0; i < rows; i++) {
                 for (let j = 0; j < cols; j++) {
                     const cellIndex = i * cols + j;
-                    if (gameBoard[i][j]) {
-                        cells[cellIndex].style.backgroundColor = gameBoard[i][j];
+                    if (board[i][j]) {
+                        cells[cellIndex].style.backgroundColor = board[i][j];
                         cells[cellIndex].classList.add('filled');
                     } else {
                         cells[cellIndex].style.backgroundColor = '';
@@ -223,22 +257,24 @@
                 }
             }
 
-            // Add ghost piece
-            const ghostPosition = getGhostPosition();
-            ghostPosition.forEach(([row, col]) => {
-                const cellIndex = row * cols + col;
-                cells[cellIndex].style.backgroundColor = currentShape.color;
-                cells[cellIndex].classList.add('ghost');
-            });
-
-            // Add current piece
-            currentShape.position.forEach(([row, col]) => {
-                if (row >= 0 && row < rows && col >= 0 && col < cols) {
+            if (element === board) {
+                // Add ghost piece
+                const ghostPosition = getGhostPosition();
+                ghostPosition.forEach(([row, col]) => {
                     const cellIndex = row * cols + col;
                     cells[cellIndex].style.backgroundColor = currentShape.color;
-                    cells[cellIndex].classList.remove('ghost');
-                }
-            });
+                    cells[cellIndex].classList.add('ghost');
+                });
+
+                // Add current piece
+                currentShape.position.forEach(([row, col]) => {
+                    if (row >= 0 && row < rows && col >= 0 && col < cols) {
+                        const cellIndex = row * cols + col;
+                        cells[cellIndex].style.backgroundColor = currentShape.color;
+                        cells[cellIndex].classList.remove('ghost');
+                    }
+                });
+            }
         }
 
         function updateShapePreview(shape, element) {
@@ -256,15 +292,15 @@
             }
         }
 
-        function addShapeToBoard() {
-            currentShape.position.forEach(([row, col]) => {
+        function addShapeToBoard(shape, board) {
+            shape.position.forEach(([row, col]) => {
                 if (row >= 0 && row < rows && col >= 0 && col < cols) {
-                    gameBoard[row][col] = currentShape.color;
+                    board[row][col] = shape.color;
                 }
             });
         }
 
-        function isValidMove(shape, row, col) {
+        function isValidMove(shape, row, col, board) {
             return shape.every(([r, c]) => {
                 const newRow = row + r;
                 const newCol = col + c;
@@ -273,14 +309,14 @@
                     newRow < rows &&
                     newCol >= 0 &&
                     newCol < cols &&
-                    !gameBoard[newRow][newCol]
+                    !board[newRow][newCol]
                 );
             });
         }
 
         function getGhostPosition() {
             let ghostRow = currentShape.row;
-            while (isValidMove(currentShape.position, ghostRow + 1, currentShape.col)) {
+            while (isValidMove(currentShape.position, ghostRow + 1, currentShape.col, gameBoard)) {
                 ghostRow++;
             }
             return currentShape.position.map(([r, c]) => [ghostRow + r, currentShape.col + c]);
@@ -288,10 +324,10 @@
 
         function moveShape(direction) {
             const newCol = currentShape.col + direction;
-            if (isValidMove(currentShape.position, currentShape.row, newCol)) {
+            if (isValidMove(currentShape.position, currentShape.row, newCol, gameBoard)) {
                 currentShape.col = newCol;
                 currentShape.position = currentShape.position.map(([r, c]) => [r, c + direction]);
-                updateBoard();
+                updateBoard(gameBoard, board, 'cell');
                 moveSound.play();
             }
         }
@@ -302,30 +338,33 @@
                 row.map((cell, j) => [currentShape.row + i, currentShape.col + j]).filter(([r, c]) => cell === 1)
             ).flat();
 
-            if (isValidMove(newPosition, currentShape.row, currentShape.col)) {
+            if (isValidMove(newPosition, currentShape.row, currentShape.col, gameBoard)) {
                 currentShape.shape = rotated;
                 currentShape.position = newPosition;
-                updateBoard();
+                updateBoard(gameBoard, board, 'cell');
                 rotateSound.play();
             }
         }
 
-        function shiftBoardUp() {
-            gameBoard.pop();
-            gameBoard.unshift(Array(cols).fill(0));
+        function shiftBoardUp(board) {
+            board.pop();
+            board.unshift(Array(cols).fill(0));
         }
 
-        function checkForFullRows() {
+        function checkForFullRows(board) {
             let fullRows = 0;
             for (let i = 0; i < rows; i++) {
-                if (gameBoard[i].every(cell => cell !== 0)) {
-                    gameBoard.splice(i, 1);
-                    gameBoard.unshift(Array(cols).fill(0));
+                if (board[i].every(cell => cell !== 0)) {
+                    board.splice(i, 1);
+                    board.unshift(Array(cols).fill(0));
                     fullRows++;
                 }
             }
             if (fullRows > 0) {
                 clearSound.play();
+                if (fullRows >= 4) {
+                    comboSound.play();
+                }
             }
             return fullRows;
         }
@@ -334,6 +373,24 @@
             const points = [0, 40, 100, 300, 1200];
             score += points[fullRows] * level;
             scoreDisplay.textContent = score;
+            if (fullRows > 0) {
+                combo++;
+                comboDisplay.textContent = combo;
+                showComboIndicator();
+            } else {
+                combo = 0;
+                comboDisplay.textContent = combo;
+            }
+        }
+
+        function showComboIndicator() {
+            comboIndicator.textContent = `${combo}x Combo!`;
+            comboIndicator.style.opacity = '1';
+            comboIndicator.style.transform = 'translateY(-50px)';
+            setTimeout(() => {
+                comboIndicator.style.opacity = '0';
+                comboIndicator.style.transform = 'translateY(0)';
+            }, 1000);
         }
 
         function updateLevel() {
@@ -342,7 +399,7 @@
                 levelDisplay.textContent = level;
                 speed = Math.max(100, 1000 - (level - 1) * 50);
                 clearInterval(gameInterval);
-                gameInterval = setInterval(gameLoop, speed);
+                gameInterval = setInterval(() => gameLoop(gameBoard, board, 'cell'), speed);
             }
         }
 
@@ -378,15 +435,15 @@
             canHold = false;
         }
 
-        function gameLoop() {
+        function gameLoop(board, element, cellClass) {
             if (!isPaused) {
-                if (isValidMove(currentShape.position, currentShape.row + 1, currentShape.col)) {
+                if (isValidMove(currentShape.position, currentShape.row + 1, currentShape.col, board)) {
                     currentShape.row++;
                     currentShape.position = currentShape.position.map(([r, c]) => [r + 1, c]);
                 } else {
-                    addShapeToBoard();
+                    addShapeToBoard(currentShape, board);
                     dropSound.play();
-                    const fullRows = checkForFullRows();
+                    const fullRows = checkForFullRows(board);
                     updateScore(fullRows);
                     updateLevel();
 
@@ -395,19 +452,24 @@
                     updateShapePreview(nextShape, nextShapePreview);
                     canHold = true;
 
-                    if (!isValidMove(currentShape.position, currentShape.row, currentShape.col)) {
-                        gameOver();
+                    if (!isValidMove(currentShape.position, currentShape.row, currentShape.col, board)) {
+                        if (element === board) {
+                            gameOver();
+                        } else {
+                            resetAIBoard();
+                        }
                         return;
                     }
                 }
 
-                shiftBoardUp();
-                updateBoard();
+                shiftBoardUp(board);
+                updateBoard(board, element, cellClass);
             }
         }
 
         function gameOver() {
             clearInterval(gameInterval);
+            clearInterval(aiInterval);
             gameOverSound.play();
             finalScoreDisplay.textContent = score;
             gameOverScreen.style.display = 'block';
@@ -415,14 +477,18 @@
 
         function startGame() {
             gameBoard = Array(rows).fill().map(() => Array(cols).fill(0));
-            createBoard();
+            aiGameBoard = Array(rows).fill().map(() => Array(cols).fill(0));
+            createBoard(board, rows, cols, 'cell');
+            createBoard(aiBoard, rows, cols, 'ai-cell');
             createShapePreview(nextShapePreview);
             createShapePreview(holdShapePreview);
             score = 0;
             level = 1;
+            combo = 0;
             speed = 1000;
             scoreDisplay.textContent = score;
             levelDisplay.textContent = level;
+            comboDisplay.textContent = combo;
 
             currentShape = getRandomShape();
             currentShape.row = 0;
@@ -438,14 +504,21 @@
             updateShapePreview(nextShape, nextShapePreview);
             updateShapePreview(holdShape, holdShapePreview);
 
-            gameInterval = setInterval(gameLoop, speed);
+            gameInterval = setInterval(() => gameLoop(gameBoard, board, 'cell'), speed);
+            aiInterval = setInterval(() => gameLoop(aiGameBoard, aiBoard, 'ai-cell'), speed * 0.8);
             gameOverScreen.style.display = 'none';
             isPaused = false;
             pauseBtn.textContent = 'Pause';
         }
 
+        function resetAIBoard() {
+            aiGameBoard = Array(rows).fill().map(() => Array(cols).fill(0));
+            updateBoard(aiGameBoard, aiBoard, 'ai-cell');
+        }
+
         startBtn.addEventListener('click', () => {
             clearInterval(gameInterval);
+            clearInterval(aiInterval);
             startGame();
         });
 
@@ -468,17 +541,17 @@
                         moveShape(1);
                         break;
                     case 'ArrowDown':
-                        gameLoop();
+                        gameLoop(gameBoard, board, 'cell');
                         break;
                     case 'ArrowUp':
                         rotateCurrentShape();
                         break;
                     case ' ':
-                        while (isValidMove(currentShape.position, currentShape.row + 1, currentShape.col)) {
+                        while (isValidMove(currentShape.position, currentShape.row + 1, currentShape.col, gameBoard)) {
                             currentShape.row++;
                             currentShape.position = currentShape.position.map(([r, c]) => [r + 1, c]);
                         }
-                        gameLoop();
+                        gameLoop(gameBoard, board, 'cell');
                         break;
                     case 'c':
                     case 'C':
@@ -492,7 +565,8 @@
             }
         });
 
-        createBoard();
+        createBoard(board, rows, cols, 'cell');
+        createBoard(aiBoard, rows, cols, 'ai-cell');
         createShapePreview(nextShapePreview);
         createShapePreview(holdShapePreview);
     </script>
