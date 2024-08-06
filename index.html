@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Reverse Tetris - Version 1</title>
+    <title>Reverse Tetris - Version 2</title>
     <style>
         body {
             display: flex;
@@ -17,6 +17,9 @@
         #game-container {
             border: 2px solid #333;
             background-color: #fff;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
         }
         #game-board {
             display: grid;
@@ -29,6 +32,7 @@
             width: 30px;
             height: 30px;
             border: 1px solid #999;
+            transition: background-color 0.2s;
         }
         .filled {
             background-color: #3498db;
@@ -41,12 +45,32 @@
             padding: 10px 20px;
             font-size: 16px;
             cursor: pointer;
+            background-color: #2ecc71;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            transition: background-color 0.3s;
+        }
+        button:hover {
+            background-color: #27ae60;
+        }
+        #score-container {
+            margin-top: 20px;
+            text-align: center;
+            font-size: 18px;
+        }
+        #level-container {
+            margin-top: 10px;
+            text-align: center;
+            font-size: 18px;
         }
     </style>
 </head>
 <body>
     <div id="game-container">
         <div id="game-board"></div>
+        <div id="score-container">Score: <span id="score">0</span></div>
+        <div id="level-container">Level: <span id="level">1</span></div>
         <div id="controls">
             <button id="start-btn">Start Game</button>
             <button id="pause-btn">Pause</button>
@@ -56,12 +80,18 @@
         const board = document.getElementById('game-board');
         const startBtn = document.getElementById('start-btn');
         const pauseBtn = document.getElementById('pause-btn');
+        const scoreDisplay = document.getElementById('score');
+        const levelDisplay = document.getElementById('level');
         const rows = 20;
         const cols = 10;
         let gameInterval;
         let isPaused = false;
+        let score = 0;
+        let level = 1;
+        let speed = 1000;
 
         function createBoard() {
+            board.innerHTML = '';
             for (let i = 0; i < rows * cols; i++) {
                 const cell = document.createElement('div');
                 cell.classList.add('cell');
@@ -100,16 +130,59 @@
             gameBoard.unshift(addRow());
         }
 
+        function checkForFullRows(gameBoard) {
+            let fullRows = 0;
+            for (let i = 0; i < rows; i++) {
+                if (gameBoard[i].every(cell => cell === 1)) {
+                    gameBoard.splice(i, 1);
+                    gameBoard.push(Array(cols).fill(0));
+                    fullRows++;
+                }
+            }
+            return fullRows;
+        }
+
+        function updateScore(fullRows) {
+            const points = [0, 40, 100, 300, 1200];
+            score += points[fullRows] * level;
+            scoreDisplay.textContent = score;
+        }
+
+        function updateLevel() {
+            if (score >= level * 1000) {
+                level++;
+                levelDisplay.textContent = level;
+                speed = Math.max(100, 1000 - (level - 1) * 100);
+                clearInterval(gameInterval);
+                gameInterval = setInterval(gameLoop, speed);
+            }
+        }
+
+        function gameLoop(gameBoard) {
+            if (!isPaused) {
+                shiftBoardUp(gameBoard);
+                const fullRows = checkForFullRows(gameBoard);
+                updateScore(fullRows);
+                updateLevel();
+                updateBoard(gameBoard);
+
+                if (gameBoard[0].some(cell => cell === 1)) {
+                    clearInterval(gameInterval);
+                    alert('Game Over! Your score: ' + score);
+                }
+            }
+        }
+
         function startGame() {
             let gameBoard = Array(rows).fill().map(() => Array(cols).fill(0));
             createBoard();
+            score = 0;
+            level = 1;
+            speed = 1000;
+            scoreDisplay.textContent = score;
+            levelDisplay.textContent = level;
 
-            gameInterval = setInterval(() => {
-                if (!isPaused) {
-                    shiftBoardUp(gameBoard);
-                    updateBoard(gameBoard);
-                }
-            }, 1000);
+            gameInterval = setInterval(() => gameLoop(gameBoard), speed);
         }
 
         startBtn.addEventListener('click', () => {
