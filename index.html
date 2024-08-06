@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Reverse Tetris - Version 3</title>
+    <title>Reverse Tetris - Version 4</title>
     <style>
         body {
             display: flex;
@@ -41,7 +41,7 @@
             flex-direction: column;
             align-items: center;
         }
-        #next-shape {
+        #next-shape, #hold-shape {
             width: 120px;
             height: 120px;
             display: grid;
@@ -73,28 +73,31 @@
             text-align: center;
             font-size: 18px;
         }
+        .ghost {
+            opacity: 0.3;
+        }
     </style>
 </head>
 <body>
     <div id="game-container">
         <div id="game-board"></div>
         <div id="side-panel">
+            <div id="hold-shape"></div>
             <div id="next-shape"></div>
             <div id="score-container">Score: <span id="score">0</span></div>
             <div id="level-container">Level: <span id="level">1</span></div>
             <div id="controls">
                 <button id="start-btn">Start Game</button>
                 <button id="pause-btn">Pause</button>
-                <button id="rotate-btn">Rotate</button>
             </div>
         </div>
     </div>
     <script>
         const board = document.getElementById('game-board');
         const nextShapePreview = document.getElementById('next-shape');
+        const holdShapePreview = document.getElementById('hold-shape');
         const startBtn = document.getElementById('start-btn');
         const pauseBtn = document.getElementById('pause-btn');
-        const rotateBtn = document.getElementById('rotate-btn');
         const scoreDisplay = document.getElementById('score');
         const levelDisplay = document.getElementById('level');
         const rows = 20;
@@ -106,6 +109,9 @@
         let speed = 1000;
         let currentShape;
         let nextShape;
+        let holdShape;
+        let canHold = true;
+        let gameBoard;
 
         const shapes = [
             [[1, 1, 1, 1]],
@@ -128,12 +134,12 @@
             }
         }
 
-        function createNextShapePreview() {
-            nextShapePreview.innerHTML = '';
+        function createShapePreview(element) {
+            element.innerHTML = '';
             for (let i = 0; i < 16; i++) {
                 const cell = document.createElement('div');
                 cell.classList.add('cell');
-                nextShapePreview.appendChild(cell);
+                element.appendChild(cell);
             }
         }
 
@@ -157,7 +163,7 @@
             return rotated;
         }
 
-        function updateBoard(gameBoard) {
+        function updateBoard() {
             const cells = board.getElementsByClassName('cell');
             for (let i = 0; i < rows; i++) {
                 for (let j = 0; j < cols; j++) {
@@ -167,43 +173,100 @@
                     } else {
                         cells[cellIndex].style.backgroundColor = '';
                     }
+                    cells[cellIndex].classList.remove('ghost');
                 }
             }
-        }
 
-        function updateNextShapePreview() {
-            const cells = nextShapePreview.getElementsByClassName('cell');
-            cells.forEach(cell => cell.style.backgroundColor = '');
-            nextShape.shape.forEach((row, i) => {
-                row.forEach((cell, j) => {
-                    if (cell) {
-                        const index = i * 4 + j;
-                        cells[index].style.backgroundColor = nextShape.color;
-                    }
-                });
+            // Add ghost piece
+            const ghostPosition = getGhostPosition();
+            ghostPosition.forEach(([row, col]) => {
+                const cellIndex = row * cols + col;
+                cells[cellIndex].style.backgroundColor = currentShape.color;
+                cells[cellIndex].classList.add('ghost');
+            });
+
+            // Add current piece
+            currentShape.position.forEach(([row, col]) => {
+                if (row >= 0 && row < rows && col >= 0 && col < cols) {
+                    const cellIndex = row * cols + col;
+                    cells[cellIndex].style.backgroundColor = currentShape.color;
+                    cells[cellIndex].classList.remove('ghost');
+                }
             });
         }
 
-        function addShapeToBoard(gameBoard) {
-            const shapeHeight = currentShape.shape.length;
-            const shapeWidth = currentShape.shape[0].length;
-            const startCol = Math.floor((cols - shapeWidth) / 2);
-
-            for (let i = 0; i < shapeHeight; i++) {
-                for (let j = 0; j < shapeWidth; j++) {
-                    if (currentShape.shape[i][j]) {
-                        gameBoard[i][startCol + j] = currentShape.color;
-                    }
-                }
+        function updateShapePreview(shape, element) {
+            const cells = element.getElementsByClassName('cell');
+            cells.forEach(cell => cell.style.backgroundColor = '');
+            if (shape) {
+                shape.shape.forEach((row, i) => {
+                    row.forEach((cell, j) => {
+                        if (cell) {
+                            const index = i * 4 + j;
+                            cells[index].style.backgroundColor = shape.color;
+                        }
+                    });
+                });
             }
         }
 
-        function shiftBoardUp(gameBoard) {
+        function addShapeToBoard() {
+            currentShape.position.forEach(([row, col]) => {
+                if (row >= 0 && row < rows && col >= 0 && col < cols) {
+                    gameBoard[row][col] = currentShape.color;
+                }
+            });
+        }
+
+        function isValidMove(shape, row, col) {
+            return shape.every(([r, c]) => {
+                const newRow = row + r;
+                const newCol = col + c;
+                return (
+                    newRow >= 0 &&
+                    newRow < rows &&
+                    newCol >= 0 &&
+                    newCol < cols &&
+                    !gameBoard[newRow][newCol]
+                );
+            });
+        }
+
+        function getGhostPosition() {
+            let ghostRow = currentShape.row;
+            while (isValidMove(currentShape.position, ghostRow + 1, currentShape.col)) {
+                ghostRow++;
+            }
+            return currentShape.position.map(([r, c]) => [ghostRow + r, currentShape.col + c]);
+        }
+
+        function moveShape(direction) {
+            const newCol = currentShape.col + direction;
+            if (isValidMove(currentShape.position, currentShape.row, newCol)) {
+                currentShape.col = newCol;
+                updateBoard();
+            }
+        }
+
+        function rotateCurrentShape() {
+            const rotated = rotateShape(currentShape.shape);
+            const newPosition = rotated.map((row, i) =>
+                row.map((cell, j) => [currentShape.row + i, currentShape.col + j]).filter(([r, c]) => cell === 1)
+            ).flat();
+
+            if (isValidMove(newPosition, currentShape.row, currentShape.col)) {
+                currentShape.shape = rotated;
+                currentShape.position = newPosition;
+                updateBoard();
+            }
+        }
+
+        function shiftBoardUp() {
             gameBoard.pop();
             gameBoard.unshift(Array(cols).fill(0));
         }
 
-        function checkForFullRows(gameBoard) {
+        function checkForFullRows() {
             let fullRows = 0;
             for (let i = 0; i < rows; i++) {
                 if (gameBoard[i].every(cell => cell !== 0)) {
@@ -231,30 +294,71 @@
             }
         }
 
-        function gameLoop(gameBoard) {
-            if (!isPaused) {
-                shiftBoardUp(gameBoard);
-                addShapeToBoard(gameBoard);
-                const fullRows = checkForFullRows(gameBoard);
-                updateScore(fullRows);
-                updateLevel();
-                updateBoard(gameBoard);
+        function holdCurrentShape() {
+            if (!canHold) return;
 
+            if (holdShape) {
+                const temp = holdShape;
+                holdShape = {
+                    shape: currentShape.shape,
+                    color: currentShape.color
+                };
+                currentShape = {
+                    shape: temp.shape,
+                    color: temp.color,
+                    row: 0,
+                    col: Math.floor((cols - temp.shape[0].length) / 2),
+                    position: temp.shape.map((row, i) =>
+                        row.map((cell, j) => [i, j + Math.floor((cols - temp.shape[0].length) / 2)]).filter(([r, c]) => cell === 1)
+                    ).flat()
+                };
+            } else {
+                holdShape = {
+                    shape: currentShape.shape,
+                    color: currentShape.color
+                };
                 currentShape = nextShape;
                 nextShape = getRandomShape();
-                updateNextShapePreview();
+            }
 
-                if (gameBoard[0].some(cell => cell !== 0)) {
-                    clearInterval(gameInterval);
-                    alert('Game Over! Your score: ' + score);
+            updateShapePreview(holdShape, holdShapePreview);
+            updateShapePreview(nextShape, nextShapePreview);
+            canHold = false;
+        }
+
+        function gameLoop() {
+            if (!isPaused) {
+                if (isValidMove(currentShape.position, currentShape.row + 1, currentShape.col)) {
+                    currentShape.row++;
+                    currentShape.position = currentShape.position.map(([r, c]) => [r + 1, c]);
+                } else {
+                    addShapeToBoard();
+                    const fullRows = checkForFullRows();
+                    updateScore(fullRows);
+                    updateLevel();
+
+                    currentShape = nextShape;
+                    nextShape = getRandomShape();
+                    updateShapePreview(nextShape, nextShapePreview);
+                    canHold = true;
+
+                    if (!isValidMove(currentShape.position, currentShape.row, currentShape.col)) {
+                        clearInterval(gameInterval);
+                        alert('Game Over! Your score: ' + score);
+                        return;
+                    }
                 }
+
+                shiftBoardUp();
+                updateBoard();
             }
         }
 
         function startGame() {
-            let gameBoard = Array(rows).fill().map(() => Array(cols).fill(0));
+            gameBoard = Array(rows).fill().map(() => Array(cols).fill(0));
             createBoard();
-            createNextShapePreview();
+            createShapePreview(nextShapePreview);
+            createShapePreview(holdShapePreview);
             score = 0;
             level = 1;
             speed = 1000;
@@ -262,10 +366,20 @@
             levelDisplay.textContent = level;
 
             currentShape = getRandomShape();
-            nextShape = getRandomShape();
-            updateNextShapePreview();
+            currentShape.row = 0;
+            currentShape.col = Math.floor((cols - currentShape.shape[0].length) / 2);
+            currentShape.position = currentShape.shape.map((row, i) =>
+                row.map((cell, j) => [i, j + Math.floor((cols - currentShape.shape[0].length) / 2)]).filter(([r, c]) => cell === 1)
+            ).flat();
 
-            gameInterval = setInterval(() => gameLoop(gameBoard), speed);
+            nextShape = getRandomShape();
+            holdShape = null;
+            canHold = true;
+
+            updateShapePreview(nextShape, nextShapePreview);
+            updateShapePreview(holdShape, holdShapePreview);
+
+            gameInterval = setInterval(gameLoop, speed);
         }
 
         startBtn.addEventListener('click', () => {
@@ -278,15 +392,39 @@
             pauseBtn.textContent = isPaused ? 'Resume' : 'Pause';
         });
 
-        rotateBtn.addEventListener('click', () => {
-            if (!isPaused && currentShape) {
-                currentShape.shape = rotateShape(currentShape.shape);
-                updateBoard(gameBoard);
+        document.addEventListener('keydown', (e) => {
+            if (!isPaused) {
+                switch (e.key) {
+                    case 'ArrowLeft':
+                        moveShape(-1);
+                        break;
+                    case 'ArrowRight':
+                        moveShape(1);
+                        break;
+                    case 'ArrowDown':
+                        gameLoop();
+                        break;
+                    case 'ArrowUp':
+                        rotateCurrentShape();
+                        break;
+                    case ' ':
+                        while (isValidMove(currentShape.position, currentShape.row + 1, currentShape.col)) {
+                            currentShape.row++;
+                            currentShape.position = currentShape.position.map(([r, c]) => [r + 1, c]);
+                        }
+                        gameLoop();
+                        break;
+                    case 'c':
+                    case 'C':
+                        holdCurrentShape();
+                        break;
+                }
             }
         });
 
         createBoard();
-        createNextShapePreview();
+        createShapePreview(nextShapePreview);
+        createShapePreview(holdShapePreview);
     </script>
 </body>
 </html>
