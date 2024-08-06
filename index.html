@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reverse Tetris - Version 1</title>
+    <style>
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            background-color: #f0f0f0;
+            font-family: Arial, sans-serif;
+        }
+        #game-container {
+            border: 2px solid #333;
+            background-color: #fff;
+        }
+        #game-board {
+            display: grid;
+            grid-template-columns: repeat(10, 30px);
+            grid-template-rows: repeat(20, 30px);
+            gap: 1px;
+            background-color: #ddd;
+        }
+        .cell {
+            width: 30px;
+            height: 30px;
+            border: 1px solid #999;
+        }
+        .filled {
+            background-color: #3498db;
+        }
+        #controls {
+            margin-top: 20px;
+            text-align: center;
+        }
+        button {
+            padding: 10px 20px;
+            font-size: 16px;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <div id="game-container">
+        <div id="game-board"></div>
+        <div id="controls">
+            <button id="start-btn">Start Game</button>
+            <button id="pause-btn">Pause</button>
+        </div>
+    </div>
+    <script>
+        const board = document.getElementById('game-board');
+        const startBtn = document.getElementById('start-btn');
+        const pauseBtn = document.getElementById('pause-btn');
+        const rows = 20;
+        const cols = 10;
+        let gameInterval;
+        let isPaused = false;
+
+        function createBoard() {
+            for (let i = 0; i < rows * cols; i++) {
+                const cell = document.createElement('div');
+                cell.classList.add('cell');
+                board.appendChild(cell);
+            }
+        }
+
+        function getRandomInt(max) {
+            return Math.floor(Math.random() * max);
+        }
+
+        function addRow() {
+            const newRow = [];
+            for (let i = 0; i < cols; i++) {
+                newRow.push(getRandomInt(2));
+            }
+            return newRow;
+        }
+
+        function updateBoard(gameBoard) {
+            const cells = board.getElementsByClassName('cell');
+            for (let i = 0; i < rows; i++) {
+                for (let j = 0; j < cols; j++) {
+                    const cellIndex = i * cols + j;
+                    if (gameBoard[i][j] === 1) {
+                        cells[cellIndex].classList.add('filled');
+                    } else {
+                        cells[cellIndex].classList.remove('filled');
+                    }
+                }
+            }
+        }
+
+        function shiftBoardUp(gameBoard) {
+            gameBoard.pop();
+            gameBoard.unshift(addRow());
+        }
+
+        function startGame() {
+            let gameBoard = Array(rows).fill().map(() => Array(cols).fill(0));
+            createBoard();
+
+            gameInterval = setInterval(() => {
+                if (!isPaused) {
+                    shiftBoardUp(gameBoard);
+                    updateBoard(gameBoard);
+                }
+            }, 1000);
+        }
+
+        startBtn.addEventListener('click', () => {
+            clearInterval(gameInterval);
+            startGame();
+        });
+
+        pauseBtn.addEventListener('click', () => {
+            isPaused = !isPaused;
+            pauseBtn.textContent = isPaused ? 'Resume' : 'Pause';
+        });
+
+        createBoard();
+    </script>
+</body>
+</html>
