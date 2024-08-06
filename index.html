@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Reverse Tetris - Version 4</title>
+    <title>Reverse Tetris - Version 5</title>
     <style>
         body {
             display: flex;
@@ -11,29 +11,31 @@
             align-items: center;
             height: 100vh;
             margin: 0;
-            background-color: #f0f0f0;
-            font-family: Arial, sans-serif;
+            background-color: #2c3e50;
+            font-family: 'Arial', sans-serif;
+            color: #ecf0f1;
         }
         #game-container {
             display: flex;
-            border: 2px solid #333;
-            background-color: #fff;
+            border: 2px solid #34495e;
+            background-color: #34495e;
             padding: 20px;
             border-radius: 10px;
-            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.3);
         }
         #game-board {
             display: grid;
             grid-template-columns: repeat(10, 30px);
             grid-template-rows: repeat(20, 30px);
             gap: 1px;
-            background-color: #ddd;
+            background-color: #2c3e50;
+            border: 2px solid #95a5a6;
         }
         .cell {
             width: 30px;
             height: 30px;
-            border: 1px solid #999;
-            transition: background-color 0.2s;
+            border: 1px solid #34495e;
+            transition: background-color 0.2s, transform 0.2s;
         }
         #side-panel {
             margin-left: 20px;
@@ -47,8 +49,9 @@
             display: grid;
             grid-template-columns: repeat(4, 30px);
             grid-template-rows: repeat(4, 30px);
-            background-color: #eee;
+            background-color: #34495e;
             margin-bottom: 20px;
+            border: 2px solid #95a5a6;
         }
         #controls {
             margin-top: 20px;
@@ -62,11 +65,15 @@
             color: white;
             border: none;
             border-radius: 5px;
-            transition: background-color 0.3s;
+            transition: background-color 0.3s, transform 0.1s;
             margin: 5px;
         }
         button:hover {
             background-color: #27ae60;
+            transform: scale(1.05);
+        }
+        button:active {
+            transform: scale(0.95);
         }
         #score-container, #level-container {
             margin-top: 10px;
@@ -76,13 +83,35 @@
         .ghost {
             opacity: 0.3;
         }
+        #game-over {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+            display: none;
+        }
+        .filled {
+            animation: pop 0.3s ease-out;
+        }
+        @keyframes pop {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.2); }
+            100% { transform: scale(1); }
+        }
     </style>
 </head>
 <body>
     <div id="game-container">
         <div id="game-board"></div>
         <div id="side-panel">
+            <h3>Hold</h3>
             <div id="hold-shape"></div>
+            <h3>Next</h3>
             <div id="next-shape"></div>
             <div id="score-container">Score: <span id="score">0</span></div>
             <div id="level-container">Level: <span id="level">1</span></div>
@@ -92,14 +121,22 @@
             </div>
         </div>
     </div>
+    <div id="game-over">
+        <h2>Game Over</h2>
+        <p>Your score: <span id="final-score"></span></p>
+        <button id="restart-btn">Play Again</button>
+    </div>
     <script>
         const board = document.getElementById('game-board');
         const nextShapePreview = document.getElementById('next-shape');
         const holdShapePreview = document.getElementById('hold-shape');
         const startBtn = document.getElementById('start-btn');
         const pauseBtn = document.getElementById('pause-btn');
+        const restartBtn = document.getElementById('restart-btn');
         const scoreDisplay = document.getElementById('score');
         const levelDisplay = document.getElementById('level');
+        const finalScoreDisplay = document.getElementById('final-score');
+        const gameOverScreen = document.getElementById('game-over');
         const rows = 20;
         const cols = 10;
         let gameInterval;
@@ -124,6 +161,13 @@
         ];
 
         const colors = ['#FF0000', '#00FF00', '#0000FF', '#FFFF00', '#00FFFF', '#FF00FF', '#FFA500'];
+
+        // Sound effects
+        const moveSound = new Audio('https://example.com/move.mp3');
+        const rotateSound = new Audio('https://example.com/rotate.mp3');
+        const dropSound = new Audio('https://example.com/drop.mp3');
+        const clearSound = new Audio('https://example.com/clear.mp3');
+        const gameOverSound = new Audio('https://example.com/gameover.mp3');
 
         function createBoard() {
             board.innerHTML = '';
@@ -170,8 +214,10 @@
                     const cellIndex = i * cols + j;
                     if (gameBoard[i][j]) {
                         cells[cellIndex].style.backgroundColor = gameBoard[i][j];
+                        cells[cellIndex].classList.add('filled');
                     } else {
                         cells[cellIndex].style.backgroundColor = '';
+                        cells[cellIndex].classList.remove('filled');
                     }
                     cells[cellIndex].classList.remove('ghost');
                 }
@@ -244,7 +290,9 @@
             const newCol = currentShape.col + direction;
             if (isValidMove(currentShape.position, currentShape.row, newCol)) {
                 currentShape.col = newCol;
+                currentShape.position = currentShape.position.map(([r, c]) => [r, c + direction]);
                 updateBoard();
+                moveSound.play();
             }
         }
 
@@ -258,6 +306,7 @@
                 currentShape.shape = rotated;
                 currentShape.position = newPosition;
                 updateBoard();
+                rotateSound.play();
             }
         }
 
@@ -275,6 +324,9 @@
                     fullRows++;
                 }
             }
+            if (fullRows > 0) {
+                clearSound.play();
+            }
             return fullRows;
         }
 
@@ -288,7 +340,7 @@
             if (score >= level * 1000) {
                 level++;
                 levelDisplay.textContent = level;
-                speed = Math.max(100, 1000 - (level - 1) * 100);
+                speed = Math.max(100, 1000 - (level - 1) * 50);
                 clearInterval(gameInterval);
                 gameInterval = setInterval(gameLoop, speed);
             }
@@ -333,6 +385,7 @@
                     currentShape.position = currentShape.position.map(([r, c]) => [r + 1, c]);
                 } else {
                     addShapeToBoard();
+                    dropSound.play();
                     const fullRows = checkForFullRows();
                     updateScore(fullRows);
                     updateLevel();
@@ -343,8 +396,7 @@
                     canHold = true;
 
                     if (!isValidMove(currentShape.position, currentShape.row, currentShape.col)) {
-                        clearInterval(gameInterval);
-                        alert('Game Over! Your score: ' + score);
+                        gameOver();
                         return;
                     }
                 }
@@ -352,6 +404,13 @@
                 shiftBoardUp();
                 updateBoard();
             }
+        }
+
+        function gameOver() {
+            clearInterval(gameInterval);
+            gameOverSound.play();
+            finalScoreDisplay.textContent = score;
+            gameOverScreen.style.display = 'block';
         }
 
         function startGame() {
@@ -380,6 +439,9 @@
             updateShapePreview(holdShape, holdShapePreview);
 
             gameInterval = setInterval(gameLoop, speed);
+            gameOverScreen.style.display = 'none';
+            isPaused = false;
+            pauseBtn.textContent = 'Pause';
         }
 
         startBtn.addEventListener('click', () => {
@@ -390,6 +452,10 @@
         pauseBtn.addEventListener('click', () => {
             isPaused = !isPaused;
             pauseBtn.textContent = isPaused ? 'Resume' : 'Pause';
+        });
+
+        restartBtn.addEventListener('click', () => {
+            startGame();
         });
 
         document.addEventListener('keydown', (e) => {
@@ -419,6 +485,10 @@
                         holdCurrentShape();
                         break;
                 }
+            }
+            if (e.key === 'p' || e.key === 'P') {
+                isPaused = !isPaused;
+                pauseBtn.textContent = isPaused ? 'Resume' : 'Pause';
             }
         });
 
